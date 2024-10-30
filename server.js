@@ -1,21 +1,39 @@
-require('dotenv').config();
-const express = require('express');
+import express from 'express';
+import path from 'path';
+import { config } from 'dotenv';
+import admin from 'firebase-admin';
+import cookieParser from 'cookie-parser';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+// Get directory name in ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Load environment variables
+config();
+
 const app = express();
-const path = require('path');
-const admin = require('firebase-admin');
-const cookieParser = require('cookie-parser');
 
 // Initialize Firebase Admin
-const serviceAccount = {
-    "type": "service_account",
-    "project_id": process.env.FIREBASE_PROJECT_ID,
-    "private_key": process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-    "client_email": process.env.FIREBASE_CLIENT_EMAIL,
-};
+try {
+  // Import JSON file directly
+  const serviceAccount = JSON.parse(
+    await import('fs').then(fs => 
+      fs.promises.readFile('./serviceAccount.json', 'utf8')
+    )
+  );
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
-});
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+    databaseURL: `https://${serviceAccount.project_id}.firebaseio.com`
+  });
+
+  console.log('Firebase Admin initialized successfully');
+} catch (error) {
+  console.error('Firebase Admin initialization error:', error);
+  process.exit(1);
+}
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -43,9 +61,15 @@ app.get('/login', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
+app.get('/signup', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'signup.html'));
+});
+
 app.get('/dashboard', checkAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
 });
+
+
 
 app.post('/sessionLogin', async (req, res) => {
   const idToken = req.body.idToken;
